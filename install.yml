@@ -1,0 +1,116 @@
+---
+- name: configure rabbitmq
+  hosts: rabbitmq
+  become: false
+  remote_user: root
+  serial: 3
+
+  tasks:
+  - name: enable plugins
+    community.rabbitmq.rabbitmq_plugin:
+      names: "rabbitmq_management,rabbitmq_prometheus,rabbitmq_federation,rabbitmq_federation_management"
+      state: enabled
+      new_only: yes
+    ignore_errors: yes
+    tags:
+      - rabbitmq
+
+  - name: create vhost
+    community.rabbitmq.rabbitmq_vhost:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - test1
+      - test2
+      - test3
+    tags:
+      - rabbitmq
+
+  - name: create admin user
+    community.rabbitmq.rabbitmq_user:
+      name: admin
+      password: admin1
+      vhost: "/"
+      tags: administrator
+      permissions:
+      - vhost: "{{ item }}"
+        configure_priv: .*
+        read_priv: .*
+        write_priv: .*
+      state: present
+    with_items:
+      - /
+      - test1
+      - test2
+      - test3
+    tags:
+      - rabbitmq
+
+  - name: create test user
+    community.rabbitmq.rabbitmq_user:
+      name: "{{ item }}"
+      password: test
+      vhost: "/"
+      permissions:
+      - vhost: "{{ item }}"
+        configure_priv: .*
+        read_priv: .*
+        write_priv: .*
+      state: present
+
+    with_items:
+      - test1
+      - test2
+      - test3
+    tags:
+      - rabbitmq
+
+- name: install tests
+  hosts: tests
+  become: false
+  remote_user: root
+
+  roles:
+#    - metrics
+
+  tasks:
+  - name: install required packages
+    yum:
+      name:
+        - vim
+        - java-11-openjdk.x86_64
+      state: present
+    tags:
+      - test
+
+  - name: create test dir
+    file:
+      path: /root/test
+      state: directory
+      owner: root
+      group: root
+      mode: 0755
+    tags:
+      - test
+
+  - name: download rabbitmq-perf-test
+    unarchive:
+      src: https://github.com/rabbitmq/rabbitmq-perf-test/releases/download/v2.15.0/rabbitmq-perf-test-2.15.0-bin.tar.gz
+      dest: /root/test
+      remote_src: yes
+    tags:
+      - test
+
+  - name: set JAVA_HOME
+    lineinfile:
+      path: /etc/profile.d/java.sh
+      line: "export JAVA_HOME; JAVA_HOME=/usr/lib/jvm/jre-11"
+      backup: yes
+      create: yes
+      owner: root
+      group: root
+      mode: 0644
+    tags:
+      - test
+
+

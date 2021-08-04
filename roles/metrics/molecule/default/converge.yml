@@ -1,0 +1,7 @@
+---
+- name: Converge
+  hosts: all
+  tasks:
+    - name: "Include metrics"
+      include_role:
+        name: "metrics"
