@@ -1,4 +1,19 @@
 ---
+- name: prepare hosts
+  hosts: tests
+  become: false
+  remote_user: root
+
+  tasks:
+  - name: install required packages
+    yum:
+      name:
+        - python3-pip.noarch
+      state: present
+    tags:
+      - python
+
+
 - name: configure rabbitmq
   hosts: rabbitmq
   become: false
@@ -33,16 +48,23 @@
       vhost: "/"
       tags: administrator
       permissions:
-      - vhost: "{{ item }}"
+      - vhost: "/"
+        configure_priv: .*
+        read_priv: .*
+        write_priv: .*
+      - vhost: "test1"
+        configure_priv: .*
+        read_priv: .*
+        write_priv: .*
+      - vhost: "test2"
+        configure_priv: .*
+        read_priv: .*
+        write_priv: .*
+      - vhost: "test3"
         configure_priv: .*
         read_priv: .*
         write_priv: .*
       state: present
-    with_items:
-      - /
-      - test1
-      - test2
-      - test3
     tags:
       - rabbitmq
 
@@ -57,7 +79,6 @@
         read_priv: .*
         write_priv: .*
       state: present
-
     with_items:
       - test1
       - test2
@@ -113,4 +134,75 @@
     tags:
       - test
 
+- name: configure tests
+  hosts: tests
+  become: false
+  remote_user: root
 
+  tasks:
+  - name: install systemd units
+    copy:
+      src: "{{ item }}"
+      dest: "/etc/systemd/system/{{ item }}"
+      owner: root
+      group : root
+      mode: 0644
+    with_items:
+      - producer.service
+      - consumer.service
+    tags:
+      - testenv
+
+  - name: reload system
+    systemd:
+      daemon_reload: yes
+    tags:
+      - testenv
+
+- name: configure users
+  hosts: all
+  become: false
+  remote_user: root
+
+  tasks:
+  - name: create test user
+    user:
+      name: testrunner
+      state: present
+      generate_ssh_key: yes
+      ssh_key_bits: 2048
+      ssh_key_file: .ssh/id_rsa
+    tags:
+      - testuser
+
+  - name: install public keys
+    copy:
+      src: pubkeys
+      dest: /home/testrunner/.ssh/authorized_keys
+      owner: testrunner
+      group: testrunner
+      mode: 0644
+      backup: yes
+    tags:
+      - testuser
+
+  - name: allow sudo drop in
+    lineinfile:
+      path: /etc/sudoers
+      state: present
+      regexp: "includedir /etc/sudoers.d"
+      line: "#includedir /etc/sudoers.d"
+    tags:
+      - testuser
+      - sudo
+
+  - name: install sudoers
+    copy:
+      src: testrunner.sudo
+      dest: /etc/sudoers.d/testrunner
+      owner: root
+      group: root
+      mode: 0600
+      backup: yes
+    tags:
+      - testuser

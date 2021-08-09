@@ -1,0 +1,3 @@
+Cmnd_Alias TESTRUNNER=/usr/bin/systemctl, /usr/sbin/tc
+testrunner ALL=(root) NOPASSWD: TESTRUNNER
+ 
