@@ -19,6 +19,8 @@ RMQ_HOSTS = {
 QUEUE_NAME = "py-test-1"
 DELAY = 1
 serial = 0
+failures = 1
+max_failures = 3
 
 while(True):
     try:
@@ -47,8 +49,14 @@ while(True):
         connection.close()
 
     except IndexError:
-        print("No working hosts to continue, stopping")        
-        break
+        failures = failures + 1
+        if failures > max_failures:
+            print("No working hosts and no attempts, exit")
+            break
+        print(f"Attempt {failures}: no working hosts to continue, reset")    
+        for k in RMQ_HOSTS:
+            RMQ_HOSTS[k]["working"] = True 
+        continue
 
     except pika.exceptions.ConnectionClosedByBroker as err:
         print("Connection closed by broker: {}, retrying...".format(err))
